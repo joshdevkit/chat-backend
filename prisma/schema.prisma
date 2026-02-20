@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  fullName     String
+  email        String    @unique
+  passwordHash String
+  lastSeenAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  profile              UserProfile?
+  // sessions             Session[]
+  sentMessages         Message[]
+  participants         Participant[]
+  createdConversations Conversation[]    @relation("CreatedBy")
+  messageReads         MessageRead[]
+  reactions            MessageReaction[]
+  messageHides MessageHide[]
+  conversationHides ConversationHide[]
+  typingStatuses       TypingStatus[]
+}
+
+model UserProfile {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  username    String    @unique
+  bio         String?
+  dateOfBirth DateTime?
+  avatarUrl   String?
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// model Session {
+//   id        String   @id @default(uuid())
+//   userId    String
+//   token     String   @unique @default(uuid())
+//   expiresAt DateTime
+//   createdAt DateTime @default(now())
+
+//   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+// }
+
+model ConversationTheme {
+  id             String   @id @default(uuid())
+  conversationId String    @unique
+  bgColor        String?
+  textColor      String?
+  updatedAt      DateTime @updatedAt
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id          String   @id @default(uuid())
+  name        String?
+  isGroup     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  createdById String
+
+  createdBy    User          @relation("CreatedBy", fields: [createdById], references: [id])
+  participants Participant[]
+  messages     Message[]
+  typingUsers  TypingStatus[]
+  hides        ConversationHide[]
+  themes ConversationTheme[]
+}
+
+
+model ConversationHide {
+  id             String       @id @default(uuid())
+  conversationId String
+  userId         String
+  hiddenAt       DateTime     @default(now())
+  visibleFrom    DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+}
+
+model Participant {
+  id             String       @id @default(uuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime     @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+}
+
+
+
+model Message {
+  id             String      @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String?
+  type           MessageType @default(TEXT)
+  fileUrl        String?
+  fileName       String?
+  fileSize       Int?
+  groupId        String?    
+  deletedAt      DateTime?
+  createdAt      DateTime    @default(now())
+
+  conversation   Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User              @relation(fields: [senderId], references: [id])
+  reads          MessageRead[]
+  reactions      MessageReaction[]
+  hides      MessageHide[]
+}
+
+model MessageRead {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+}
+
+model MessageReaction {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+}
+
+model MessageHide {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+}
+
+
+model TypingStatus {
+  id             String       @id @default(uuid())
+  conversationId String
+  userId         String
+  expiresAt      DateTime
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)  // ← add
+
+  @@unique([conversationId, userId])
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+}
